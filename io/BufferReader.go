@@ -14,7 +14,7 @@ type BufferReader struct {
 	wait   sync.Cond
 }
 
-func NewBufReader(r io.Reader, block ... bool) *BufferReader {
+func NewBufferReader(r io.Reader, block ... bool) *BufferReader {
 	reader := &BufferReader{
 		Buffer:    &bytes.Buffer{},
 		reader:    r,

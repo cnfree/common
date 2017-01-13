@@ -1,4 +1,4 @@
-package reflects
+package structs
 
 import "strings"
 

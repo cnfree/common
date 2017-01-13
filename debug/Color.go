@@ -1,4 +1,6 @@
-package Const
+package debug
+
+import "io"
 
 type ConsoleColor int
 
@@ -20,4 +22,10 @@ type debugColor struct {
 
 var DebugColor = debugColor{
 	COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLUE, COLOR_GRAY,
+}
+
+func ColorPrint(w io.Writer, s string, c ConsoleColor) {
+	w.Write([]byte{0x1b, '[', byte('0' + c/10), byte('0' + c%10), 'm'})
+	w.Write([]byte(s))
+	w.Write([]byte("\x1b[0m"))
 }

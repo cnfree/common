@@ -1,27 +1,21 @@
-package compare
+package cmp
 
 import (
 	"errors"
 	"reflect"
 	"unsafe"
 	"fmt"
+	"strconv"
 )
+
+var _ Comparable = IntComp(0)
+var _ Comparable = Int64Comp(0)
+var _ Comparable = FloatComp(0)
+var _ Comparable = Float64Comp(0)
+var _ Comparable = StringComp("")
 
 type Comparable interface {
 	CompareTo(Comparable) (int, error)
-}
-type IntComp int
-type Int64Comp int64
-type FloatComp float32
-type Float64Comp float64
-type StringComp string
-
-func (this StringComp) String() string {
-	return string(this)
-}
-
-func (this StringComp) Join(str interface{}) StringComp {
-	return StringComp(string(this) + fmt.Sprint(str))
 }
 
 var ErrInvalid = errors.New("invalid argument")
@@ -36,6 +30,20 @@ type ConvertError struct {
 	Type        string
 	ConvertType string
 	Err         error
+}
+
+type IntComp int
+type Int64Comp int64
+type FloatComp float32
+type Float64Comp float64
+type StringComp string
+
+func (this StringComp) String() string {
+	return string(this)
+}
+
+func (this StringComp) Join(str interface{}) StringComp {
+	return StringComp(string(this) + fmt.Sprint(str))
 }
 
 func (e *CompareError) Error() string { return e.LeftType + " " + e.RightType + ": " + e.Err.Error() }
@@ -198,13 +206,13 @@ func ConvertStringArrayToComparable(array []string) []Comparable {
 }
 
 func Map(s []Comparable, handle func(Comparable) (Comparable, error)) ([]Comparable, error) {
-	out := []Comparable{}
-	for _, i := range s {
+	out := make([]Comparable, len(s))
+	for index, i := range s {
 		result, err := handle(i)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, result.(Comparable))
+		out[index] = result.(Comparable)
 	}
 	return out, nil
 }
@@ -230,7 +238,6 @@ func Reduce(s []Comparable, handle func(Comparable, Comparable) (Comparable, err
 
 func Filter(s []Comparable, handle func(Comparable) (bool, error)) ([]Comparable, error) {
 	out := []Comparable{}
-
 	for _, i := range s {
 		result, err := handle(i)
 		if err != nil {
@@ -274,4 +281,208 @@ func Max(s []Comparable) (Comparable, error) {
 
 func Min(s []Comparable) (Comparable, error) {
 	return Reduce(s, min)
+}
+
+func ToComp(i interface{}) (Comparable, error) {
+	if m, ok := i.(Comparable); ok {
+		return m, nil
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Float32:
+		return Comparable(FloatComp(i.(float32))), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return IntComp(int(reflect.ValueOf(i).Uint())), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		return IntComp(int(reflect.ValueOf(i).Int())), nil
+	case reflect.Float64:
+		return Comparable(Float64Comp(i.(float64))), nil
+	case reflect.Uint64:
+		return Comparable(Int64Comp(int64(i.(uint64)))), nil
+	case reflect.Int64:
+		return Comparable(Int64Comp(i.(int64))), nil
+	case reflect.String:
+		return Comparable(StringComp(i.(string))), nil
+	default:
+		return nil, ErrInvalid
+	}
+}
+
+func ToCompArray(i interface{}) ([]Comparable, error) {
+	if m, ok := i.([]Comparable); ok {
+		return m, nil
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Slice:
+		values := reflect.ValueOf(i)
+		b := make([]Comparable, values.Len())
+		for i := 0; i < values.Len(); i++ {
+			c, err := ToComp(values.Index(i).Interface())
+			if err != nil {
+				return nil, err
+			}
+			b[i] = c
+		}
+		return b, nil
+	default:
+		return nil, ErrInvalid
+	}
+}
+
+func ToIntArray(s []Comparable) ([]int, error) {
+	b := make([]int, len(s))
+	for index, elem := range s {
+		c, err := ToInt(elem)
+		if err != nil {
+			return nil, err
+		}
+		b[index] = c
+	}
+	return b, nil
+}
+
+func ToInt(i Comparable) (int, error) {
+	if m, ok := i.(StringComp); ok {
+		return strconv.Atoi(string(m))
+	}
+	if m, ok := i.(IntComp); ok {
+		return int(m), nil
+	}
+	if m, ok := i.(Int64Comp); ok {
+		return int(int64(m)), nil
+	}
+	if m, ok := i.(FloatComp); ok {
+		return int(float32(m)), nil
+	}
+	if m, ok := i.(Float64Comp); ok {
+		return int(float64(m)), nil
+	}
+	return 0, ErrInvalid
+}
+
+func ToInt64Array(s []Comparable) ([]int64, error) {
+	b := make([]int64, len(s))
+	for index, elem := range s {
+		c, err := ToInt64(elem)
+		if err != nil {
+			return nil, err
+		}
+		b[index] = c
+	}
+	return b, nil
+}
+
+func ToInt64(i Comparable) (int64, error) {
+	if m, ok := i.(StringComp); ok {
+		return strconv.ParseInt(string(m), 10, 64)
+	}
+	if m, ok := i.(IntComp); ok {
+		return int64(int(m)), nil
+	}
+	if m, ok := i.(Int64Comp); ok {
+		return int64(m), nil
+	}
+	if m, ok := i.(FloatComp); ok {
+		return int64(float32(m)), nil
+	}
+	if m, ok := i.(Float64Comp); ok {
+		return int64(float64(m)), nil
+	}
+	return 0, ErrInvalid
+}
+
+func ToFloatArray(s []Comparable) ([]float32, error) {
+	b := make([]float32, len(s))
+	for index, elem := range s {
+		c, err := ToFloat(elem)
+		if err != nil {
+			return nil, err
+		}
+		b[index] = c
+	}
+	return b, nil
+}
+
+func ToFloat(i Comparable) (float32, error) {
+	if m, ok := i.(StringComp); ok {
+		result, err := strconv.ParseFloat(string(m), 64)
+		if err != nil {
+			return 0, err
+		}
+		return float32(result), nil
+	}
+	if m, ok := i.(IntComp); ok {
+		return float32(int(m)), nil
+	}
+	if m, ok := i.(Int64Comp); ok {
+		return float32(int64(m)), nil
+	}
+	if m, ok := i.(FloatComp); ok {
+		return float32(m), nil
+	}
+	if m, ok := i.(Float64Comp); ok {
+		return float32(float64(m)), nil
+	}
+	return 0, ErrInvalid
+}
+
+func ToFloat64Array(s []Comparable) ([]float64, error) {
+	b := make([]float64, len(s))
+	for index, elem := range s {
+		c, err := ToFloat64(elem)
+		if err != nil {
+			return nil, err
+		}
+		b[index] = c
+	}
+	return b, nil
+}
+
+func ToFloat64(i Comparable) (float64, error) {
+	if m, ok := i.(StringComp); ok {
+		return strconv.ParseFloat(string(m), 64)
+	}
+	if m, ok := i.(IntComp); ok {
+		return float64(int(m)), nil
+	}
+	if m, ok := i.(Int64Comp); ok {
+		return float64(int64(m)), nil
+	}
+	if m, ok := i.(FloatComp); ok {
+		return float64(float32(m)), nil
+	}
+	if m, ok := i.(Float64Comp); ok {
+		return float64(m), nil
+	}
+	return 0, ErrInvalid
+}
+
+func ToStringArray(s []Comparable) ([]string, error) {
+	b := make([]string, len(s))
+	for index, elem := range s {
+		c, err := ToString(elem)
+		if err != nil {
+			return nil, err
+		}
+		b[index] = c
+	}
+	return b, nil
+}
+
+func ToString(i Comparable) (string, error) {
+	if m, ok := i.(StringComp); ok {
+		return string(m), nil
+	}
+	if m, ok := i.(IntComp); ok {
+		return strconv.Itoa(int(m)), nil
+	}
+	if m, ok := i.(Int64Comp); ok {
+		return strconv.FormatInt(int64(m), 10), nil
+	}
+	if m, ok := i.(FloatComp); ok {
+		return fmt.Sprint(float32(m)), nil
+	}
+	if m, ok := i.(Float64Comp); ok {
+		return fmt.Sprint(float64(m)), nil
+	}
+	return "", ErrInvalid
 }

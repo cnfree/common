@@ -1,6 +1,9 @@
-package reflects
+package structs
 
-import "reflect"
+import (
+	"reflect"
+	"fmt"
+)
 
 var (
 	// DefaultTagName is the default tag name for struct fields which provides
@@ -15,6 +18,7 @@ type Struct struct {
 	raw     interface{}
 	value   reflect.Value
 	TagName string
+	methods []MethodMetadata
 }
 
 // New returns a new *Struct with the struct s. It panics if the s's kind is
@@ -22,8 +26,9 @@ type Struct struct {
 func New(s interface{}) *Struct {
 	return &Struct{
 		raw:     s,
-		value:   strctVal(s),
+		value:   structVal(s),
 		TagName: DefaultTagName,
+		methods: structMethods(s),
 	}
 }
 
@@ -220,6 +225,19 @@ func (s *Struct) Fields() []*Field {
 	return getFields(s.value, s.TagName)
 }
 
+func (s *Struct) Methods() []MethodMetadata {
+	return s.methods
+}
+
+func (s *Struct) MethodByName(name string) *MethodMetadata {
+	for _, method := range s.methods {
+		if method.SimpleName() == name {
+			return &method
+		}
+	}
+	return nil
+}
+
 // Names returns a slice of field names. A struct tag with the content of "-"
 // ignores the checking of that particular field. Example:
 //
@@ -268,13 +286,12 @@ func getFields(v reflect.Value, tagName string) []*Field {
 }
 
 // Field returns a new Field struct that provides several high level functions
-// around a single struct field entity. It panics if the field is not found.
+// around a single struct field entity.
 func (s *Struct) Field(name string) *Field {
 	f, ok := s.FieldOk(name)
 	if !ok {
-		panic("field not found")
+		return nil
 	}
-
 	return f
 }
 
@@ -422,7 +439,7 @@ func (s *Struct) structFields() []reflect.StructField {
 	return f
 }
 
-func strctVal(s interface{}) reflect.Value {
+func structVal(s interface{}) reflect.Value {
 	v := reflect.ValueOf(s)
 
 	// if pointer get the underlying element≤
@@ -435,6 +452,27 @@ func strctVal(s interface{}) reflect.Value {
 	}
 
 	return v
+}
+
+func structMethods(s interface{}) []MethodMetadata {
+	v := reflect.TypeOf(s)
+
+	if v.Kind() == reflect.Ptr {
+		if v.Elem().Kind() != reflect.Struct {
+			panic("not struct")
+		}
+	} else if v.Kind() != reflect.Struct {
+		panic("not struct")
+	}
+
+	var methods = make([]MethodMetadata, v.NumMethod())
+	for i := 0; i < v.NumMethod(); i++ {
+		method, err := GetMethodMetadata(v.Method(i))
+		if err == nil {
+			methods[i] = method
+		}
+	}
+	return methods
 }
 
 // Map converts the given struct to a map[string]interface{}. For more info
@@ -459,6 +497,10 @@ func Values(s interface{}) []interface{} {
 // Fields() method.  It panics if s's kind is not struct.
 func Fields(s interface{}) []*Field {
 	return New(s).Fields()
+}
+
+func Methods(s interface{}) []MethodMetadata {
+	return New(s).Methods()
 }
 
 // Names returns a slice of field names. For more info refer to Struct types

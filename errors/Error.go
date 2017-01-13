@@ -1,9 +1,9 @@
-package errs
+package errors
 
 import (
 	"fmt"
 	"github.com/cnfree/common/debug"
-	"errors"
+	errs "errors"
 )
 
 var TraceEnabled = true
@@ -18,7 +18,11 @@ func (e *Error) Error() string {
 }
 
 func New(s string) error {
-	err := errors.New(s)
+	return errs.New(s)
+}
+
+func NewTraceError(s string) error {
+	err := errs.New(s)
 	if !TraceEnabled {
 		return err
 	}
@@ -28,7 +32,7 @@ func New(s string) error {
 	}
 }
 
-func Trace(err error) error {
+func TraceError(err error) error {
 	if err == nil || !TraceEnabled {
 		return err
 	}

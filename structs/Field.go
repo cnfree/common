@@ -1,4 +1,4 @@
-package reflects
+package structs
 
 import (
 	"reflect"
@@ -126,7 +126,7 @@ func (f *Field) FieldOk(name string) (*Field, bool) {
 		a := f.value.Addr()
 		value = &a
 	}
-	v := strctVal(value.Interface())
+	v := structVal(value.Interface())
 	t := v.Type()
 
 	field, ok := t.FieldByName(name)
