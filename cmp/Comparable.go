@@ -185,6 +185,10 @@ func convertToComparable(a reflect.Value) []Comparable {
 	return b
 }
 
+func ConvertArrayToComparable(array interface{}) []Comparable {
+	return convertToComparable(reflect.ValueOf(array))
+}
+
 func ConvertInt64ArrayToComparable(array []int64) []Comparable {
 	value := *(*[]Int64Comp)(unsafe.Pointer(&array))
 	return convertToComparable(reflect.ValueOf(value))
@@ -466,6 +470,49 @@ func ToStringArray(s []Comparable) ([]string, error) {
 		b[index] = c
 	}
 	return b, nil
+}
+
+func ToElementArray(s []Comparable, elementType reflect.Type) (interface{}, error) {
+	b := reflect.Zero(reflect.SliceOf(elementType))
+	for _, elem := range s {
+		if reflect.TypeOf(elem) == elementType {
+			b = reflect.Append(b, reflect.ValueOf(elem))
+			continue
+		}
+
+		if reflect.TypeOf(elem).Kind() == elementType.Kind() {
+			if elementType.Kind() == reflect.Ptr {
+				if reflect.TypeOf(elem).Elem().Kind() == elementType.Elem().Kind() {
+					b = reflect.Append(b, reflect.ValueOf(elem).Convert(elementType))
+					continue
+				} else {
+					return nil, ErrInvalid
+				}
+			} else {
+				b = reflect.Append(b, reflect.ValueOf(elem).Convert(elementType))
+				continue
+			}
+		}
+
+		if elementType.Kind() == reflect.Ptr && reflect.TypeOf(elem).Kind() != reflect.Ptr {
+			if reflect.TypeOf(elem).Kind() == elementType.Elem().Kind() {
+				if reflect.ValueOf(elem).CanAddr() {
+					b = reflect.Append(b, reflect.ValueOf(elem).Addr().Convert(elementType))
+					continue
+				}
+			}
+		}
+
+		if elementType.Kind() != reflect.Ptr && reflect.TypeOf(elem).Kind() == reflect.Ptr {
+			if reflect.TypeOf(elem).Elem().Kind() == elementType.Kind() {
+				b = reflect.Append(b, reflect.ValueOf(elem).Elem().Convert(elementType))
+				continue
+			}
+		}
+
+		return nil, ErrInvalid
+	}
+	return b.Interface(), nil
 }
 
 func ToString(i Comparable) (string, error) {
